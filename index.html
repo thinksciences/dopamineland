@@ -1,0 +1,1229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Dopamine Land</title>
+<meta name="description" content="An interactive three.js candy-coloured feast for the senses.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --pink: #ff3cac; --yellow: #ffd23f; --cyan: #3bf4fb; --violet: #7b2ff7; --mint: #00f5a0;
+    --bg: #0b0217;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%; overflow: hidden; background: var(--bg); color: #fff;
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    -webkit-user-select: none; user-select: none; touch-action: none;
+  }
+  canvas#c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  body.started { cursor: none; }
+
+  .rainbow {
+    background: linear-gradient(90deg, var(--pink), var(--yellow), var(--cyan), var(--violet), var(--mint), var(--pink));
+    background-size: 300% 100%;
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    animation: slide 5s linear infinite;
+  }
+  @keyframes slide { to { background-position: 300% 0; } }
+
+  /* ---------- intro ---------- */
+  #intro {
+    position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; text-align: center; padding: 16px;
+    background: radial-gradient(ellipse at center, rgba(30, 0, 60, .25), rgba(5, 0, 15, .82));
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    transition: opacity 1.1s ease, transform 1.1s cubic-bezier(.7, 0, .3, 1);
+  }
+  #intro.gone { opacity: 0; transform: scale(1.4); pointer-events: none; }
+  #intro h1 {
+    font-family: 'Bagel Fat One', 'Arial Black', sans-serif; font-weight: 400;
+    font-size: clamp(54px, 13vw, 210px); line-height: .86; letter-spacing: -.01em;
+    filter: drop-shadow(0 0 40px rgba(255, 60, 172, .55));
+  }
+  #intro h1 .l {
+    display: inline-block; color: transparent;
+    background: linear-gradient(90deg, var(--pink), var(--yellow), var(--cyan), var(--violet), var(--mint), var(--pink));
+    background-size: 600% 100%; -webkit-background-clip: text; background-clip: text;
+    animation: bob 2.4s ease-in-out infinite, slide 6s linear infinite;
+  }
+  @keyframes bob {
+    0%, 100% { transform: translateY(0) rotate(0); }
+    50% { transform: translateY(-.08em) rotate(-3deg); }
+  }
+  #intro p { margin: 26px 0 34px; font-size: clamp(14px, 2vw, 18px); letter-spacing: .32em; text-transform: uppercase; opacity: .8; }
+  #enter {
+    font: 700 clamp(18px, 2.4vw, 24px) 'Space Grotesk', sans-serif; letter-spacing: .2em; text-transform: uppercase;
+    color: #19002e; border: 0; border-radius: 999px; padding: 22px 56px; cursor: pointer;
+    background: linear-gradient(90deg, var(--yellow), var(--pink), var(--cyan), var(--yellow));
+    background-size: 300% 100%; animation: slide 3s linear infinite, glow 1.6s ease-in-out infinite;
+    transition: transform .25s cubic-bezier(.3, 1.8, .5, 1);
+  }
+  #enter:hover { transform: scale(1.1) rotate(-2deg); }
+  #enter:active { transform: scale(.94); }
+  @keyframes glow {
+    0%, 100% { box-shadow: 0 0 30px rgba(255, 60, 172, .6), 0 0 80px rgba(59, 244, 251, .25); }
+    50% { box-shadow: 0 0 60px rgba(255, 210, 63, .9), 0 0 140px rgba(255, 60, 172, .5); }
+  }
+  #intro small { display: block; margin-top: 22px; opacity: .5; font-size: 13px; letter-spacing: .15em; }
+
+  /* ---------- hud ---------- */
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; opacity: 0; transition: opacity 1.5s .6s; }
+  body.started #hud { opacity: 1; }
+  .brand {
+    position: absolute; top: 22px; left: 26px;
+    font-family: 'Bagel Fat One', sans-serif; font-size: clamp(22px, 3vw, 34px); line-height: 1;
+    filter: drop-shadow(0 0 14px rgba(255, 60, 172, .6));
+  }
+  .score { position: absolute; top: 22px; right: 26px; text-align: right; }
+  .score .label { font-size: 11px; letter-spacing: .35em; text-transform: uppercase; opacity: .7; }
+  #score {
+    font-family: 'Bagel Fat One', sans-serif; font-size: clamp(40px, 6vw, 64px); line-height: 1;
+    display: inline-block; text-shadow: 0 0 24px rgba(255, 210, 63, .8); color: var(--yellow);
+  }
+  #score.bump { animation: bump .35s cubic-bezier(.3, 2, .5, 1); }
+  @keyframes bump { from { transform: scale(1.5) rotate(-6deg); } to { transform: scale(1); } }
+  .meter {
+    width: min(220px, 42vw); height: 12px; margin-top: 8px; margin-left: auto;
+    border-radius: 999px; background: rgba(255, 255, 255, .1); overflow: hidden;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18);
+  }
+  #meter {
+    display: block; height: 100%; width: 0%; border-radius: inherit;
+    background: linear-gradient(90deg, var(--cyan), var(--pink), var(--yellow), var(--cyan));
+    background-size: 200% 100%; animation: slide 1.2s linear infinite;
+    box-shadow: 0 0 16px var(--pink);
+  }
+  .meter-label { font-size: 10px; letter-spacing: .3em; opacity: .55; margin-top: 6px; text-transform: uppercase; }
+  #combo {
+    margin-top: 12px; font-family: 'Bagel Fat One', sans-serif; font-size: 28px; color: var(--cyan);
+    text-shadow: 0 0 18px var(--cyan); opacity: 0; transition: opacity .3s;
+  }
+  #combo.on { opacity: 1; }
+  #combo.bump { animation: bump .3s cubic-bezier(.3, 2, .5, 1); }
+  .hint {
+    position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); width: max-content; max-width: calc(100vw - 100px);
+    font-size: 12px; letter-spacing: .28em; text-transform: uppercase; opacity: .6; text-align: center;
+    animation: breathe 3s ease-in-out infinite;
+  }
+  @keyframes breathe { 50% { opacity: .25; } }
+  #mute {
+    position: absolute; bottom: 18px; right: 20px; pointer-events: auto; cursor: pointer;
+    width: 46px; height: 46px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .25);
+    background: rgba(255, 255, 255, .08); color: #fff; font-size: 20px; backdrop-filter: blur(8px);
+    transition: transform .2s;
+  }
+  body.started #mute { cursor: none; }
+  #mute:hover { transform: scale(1.12); }
+
+  /* ---------- floating fx ---------- */
+  #fx { position: fixed; inset: 0; pointer-events: none; z-index: 12; overflow: hidden; }
+  .pop {
+    position: absolute; font-family: 'Bagel Fat One', sans-serif; font-size: clamp(22px, 3vw, 36px);
+    color: var(--c); white-space: nowrap; text-shadow: 0 0 18px var(--c), 0 2px 0 rgba(0, 0, 0, .35);
+    animation: floatUp 1.2s cubic-bezier(.2, .9, .3, 1) forwards;
+  }
+  .pop.big { font-size: clamp(36px, 6vw, 72px); }
+  @keyframes floatUp {
+    0% { transform: translate(-50%, -50%) scale(.2) rotate(var(--r)); opacity: 0; }
+    15% { transform: translate(-50%, -80%) scale(1.25) rotate(var(--r)); opacity: 1; }
+    100% { transform: translate(-50%, -260%) scale(.9) rotate(calc(var(--r) * -1)); opacity: 0; }
+  }
+  .rushText {
+    position: absolute; left: 50%; top: 50%; text-align: center; width: 100%;
+    font-family: 'Bagel Fat One', sans-serif; font-size: clamp(48px, 11vw, 170px); line-height: .9;
+    filter: drop-shadow(0 0 40px rgba(255, 60, 172, .9));
+    animation: rush 1.8s cubic-bezier(.2, .9, .3, 1) forwards;
+  }
+  @keyframes rush {
+    0% { transform: translate(-50%, -50%) scale(.1) rotate(-12deg); opacity: 0; }
+    18% { transform: translate(-50%, -50%) scale(1.15) rotate(3deg); opacity: 1; }
+    30% { transform: translate(-50%, -50%) scale(1) rotate(-1deg); }
+    75% { opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(1.6) rotate(0); opacity: 0; filter: blur(12px); }
+  }
+  #flash {
+    position: fixed; inset: 0; pointer-events: none; z-index: 11; opacity: 0;
+    background: radial-gradient(circle at center, rgba(255, 255, 255, .45), rgba(255, 60, 172, .3) 40%, transparent 75%);
+    mix-blend-mode: screen;
+  }
+  #flash.on { animation: flash .7s ease-out; }
+  @keyframes flash { from { opacity: 1; } to { opacity: 0; } }
+
+  /* ---------- cursor ---------- */
+  #cursor {
+    position: fixed; left: 0; top: 0; width: 36px; height: 36px; margin: -18px 0 0 -18px; z-index: 30;
+    border-radius: 50%; pointer-events: none; opacity: 0;
+    border: 2px solid #fff; box-shadow: 0 0 18px var(--pink), inset 0 0 12px var(--cyan);
+    transition: width .25s cubic-bezier(.3, 1.8, .5, 1), height .25s cubic-bezier(.3, 1.8, .5, 1), margin .25s cubic-bezier(.3, 1.8, .5, 1), background .2s;
+  }
+  #cursor::after { content: ''; position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: #fff; }
+  body.started #cursor { opacity: 1; }
+  #cursor.hot { width: 64px; height: 64px; margin: -32px 0 0 -32px; background: rgba(255, 60, 172, .18); }
+  #cursor.down { width: 22px; height: 22px; margin: -11px 0 0 -11px; }
+  @media (pointer: coarse) {
+    #cursor { display: none; }
+    body.started { cursor: auto; }
+    .hint { font-size: 10px; bottom: 80px; }
+  }
+  @media (max-width: 520px) {
+    .brand { top: 16px; left: 16px; }
+    .score { top: 16px; right: 16px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="intro">
+  <div>
+    <h1 id="title">DOPAMINE<br>LAND</h1>
+    <p>a feast for the senses</p>
+    <button id="enter">Enter</button>
+    <small>🔊 sound on · best with headphones</small>
+  </div>
+</div>
+
+<div id="hud">
+  <div class="brand rainbow">DOPAMINE LAND</div>
+  <div class="score">
+    <div class="label">dopamine</div>
+    <div id="score">0</div>
+    <div class="meter"><i id="meter"></i></div>
+    <div class="meter-label">rush meter</div>
+    <div id="combo"></div>
+  </div>
+  <div class="hint">pop everything · hold the blob · smash space</div>
+  <button id="mute" aria-label="Toggle sound">🔊</button>
+</div>
+
+<div id="fx"></div>
+<div id="flash"></div>
+<div id="cursor"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const PALETTE = ['#ff3cac', '#ffd23f', '#3bf4fb', '#7b2ff7', '#00f5a0', '#ff6b6b', '#f72585', '#4cc9f0', '#ff9f1c', '#c77dff'];
+const WORDS = ['+1', 'YUM!', 'WOW', '✦', 'BLISS', 'YES!', 'POP!', 'JOY', 'OMG', 'NICE', 'SO GOOD', 'AAAH', 'ZING', '♥', 'WHEE', 'GORGEOUS'];
+const rand = (a = 1, b) => b === undefined ? Math.random() * a : a + Math.random() * (b - a);
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+/* =========================================================
+   AUDIO — everything synthesised live with Web Audio
+   ========================================================= */
+const SCALE = [60, 62, 64, 67, 69, 72, 74, 76, 79, 81, 84, 86, 88, 91, 93, 96, 98, 100];
+const CHORDS = [[48, 55, 64, 71], [45, 52, 60, 67], [41, 48, 57, 64], [43, 50, 59, 62]];
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+
+const A = {
+  ctx: null, muted: false,
+  init() {
+    const ctx = this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    this.master = ctx.createGain(); this.master.gain.value = 0.9;
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -16; comp.ratio.value = 4; comp.attack.value = 0.004; comp.release.value = 0.2;
+    this.master.connect(comp); comp.connect(ctx.destination);
+
+    this.dry = ctx.createGain(); this.dry.connect(this.master);
+
+    this.verb = ctx.createConvolver(); this.verb.buffer = this.impulse(3.4, 2.4);
+    const wet = ctx.createGain(); wet.gain.value = 0.5;
+    this.verb.connect(wet); wet.connect(this.master);
+
+    this.delayIn = ctx.createGain();
+    const d = ctx.createDelay(1); d.delayTime.value = 0.33;
+    const fb = ctx.createGain(); fb.gain.value = 0.38;
+    const dl = ctx.createBiquadFilter(); dl.type = 'lowpass'; dl.frequency.value = 2600;
+    this.delayIn.connect(d); d.connect(dl); dl.connect(fb); fb.connect(d); dl.connect(this.master);
+
+    const len = ctx.sampleRate;
+    this.noise = ctx.createBuffer(1, len, ctx.sampleRate);
+    const nd = this.noise.getChannelData(0);
+    for (let i = 0; i < len; i++) nd[i] = Math.random() * 2 - 1;
+
+    this.startPad();
+  },
+  impulse(sec, decay) {
+    const ctx = this.ctx, rate = ctx.sampleRate, len = rate * sec;
+    const buf = ctx.createBuffer(2, len, rate);
+    for (let ch = 0; ch < 2; ch++) {
+      const data = buf.getChannelData(ch);
+      for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+    }
+    return buf;
+  },
+  out(node, wet = 0.5, delay = 0) {
+    node.connect(this.dry);
+    const s = this.ctx.createGain(); s.gain.value = wet; node.connect(s); s.connect(this.verb);
+    if (delay) { const g = this.ctx.createGain(); g.gain.value = delay; node.connect(g); g.connect(this.delayIn); }
+  },
+  get now() { return this.ctx.currentTime; },
+  pluck(freq, vol = 0.22, when = 0, delay = 0.22) {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t0 = this.now + when;
+    const o = ctx.createOscillator(); o.type = 'triangle'; o.frequency.value = freq;
+    const o2 = ctx.createOscillator(); o2.type = 'sine'; o2.frequency.value = freq * 3.01;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(vol, t0 + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.4);
+    const g2 = ctx.createGain();
+    g2.gain.setValueAtTime(0.5, t0); g2.gain.exponentialRampToValueAtTime(0.001, t0 + 0.25);
+    o.connect(g); o2.connect(g2); g2.connect(g);
+    this.out(g, 0.55, delay);
+    o.start(t0); o2.start(t0); o.stop(t0 + 1.5); o2.stop(t0 + 1.5);
+  },
+  bloop(pitch = 1) {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t0 = this.now;
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(380 * pitch, t0);
+    o.frequency.exponentialRampToValueAtTime(1500 * pitch, t0 + 0.09);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.35, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
+    o.connect(g); this.out(g, 0.2);
+    o.start(t0); o.stop(t0 + 0.2);
+    // tiny noise click for crunch
+    const n = ctx.createBufferSource(); n.buffer = this.noise;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 4200; bp.Q.value = 1.2;
+    const ng = ctx.createGain(); ng.gain.setValueAtTime(0.25, t0); ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.04);
+    n.connect(bp); bp.connect(ng); this.out(ng, 0.3);
+    n.start(t0, rand(0.5)); n.stop(t0 + 0.05);
+  },
+  tick(freq) {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t0 = this.now;
+    const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = freq;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.05, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.12);
+    o.connect(g); this.out(g, 0.6);
+    o.start(t0); o.stop(t0 + 0.15);
+  },
+  strum(base = 0, count = 4, gap = 0.045, vol = 0.18) {
+    for (let i = 0; i < count; i++) this.pluck(mtof(SCALE[Math.min(base + i * 2, SCALE.length - 1)]), vol, i * gap);
+  },
+  whoosh(dur = 1.2, vol = 0.3) {
+    const ctx = this.ctx, t0 = this.now;
+    const n = ctx.createBufferSource(); n.buffer = this.noise; n.loop = true;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.4;
+    bp.frequency.setValueAtTime(300, t0); bp.frequency.exponentialRampToValueAtTime(9000, t0 + dur * 0.7);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + dur * 0.25);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    n.connect(bp); bp.connect(g); this.out(g, 0.6);
+    n.start(t0); n.stop(t0 + dur + 0.05);
+  },
+  boom(vol = 0.7) {
+    const ctx = this.ctx, t0 = this.now;
+    const o = ctx.createOscillator(); o.type = 'sine';
+    o.frequency.setValueAtTime(160, t0); o.frequency.exponentialRampToValueAtTime(38, t0 + 0.5);
+    const g = ctx.createGain(); g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.8);
+    o.connect(g); g.connect(this.dry);
+    o.start(t0); o.stop(t0 + 0.85);
+  },
+  rush() {
+    if (!this.ctx) return;
+    this.boom(0.8); this.whoosh(1.4, 0.28);
+    for (let i = 0; i < 14; i++) this.pluck(mtof(SCALE[Math.min(i + 2, SCALE.length - 1)]), 0.14, i * 0.045, 0.3);
+    const lp = this.padLP, t0 = this.now;
+    lp.frequency.cancelScheduledValues(t0);
+    lp.frequency.setValueAtTime(4200, t0);
+    lp.frequency.setTargetAtTime(900, t0 + 0.4, 1.2);
+  },
+  riserStart() {
+    if (!this.ctx) return;
+    const ctx = this.ctx, t0 = this.now;
+    const o = ctx.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(110, t0); o.frequency.exponentialRampToValueAtTime(880, t0 + 1.6);
+    const o2 = ctx.createOscillator(); o2.type = 'sawtooth'; o2.detune.value = 14;
+    o2.frequency.setValueAtTime(110, t0); o2.frequency.exponentialRampToValueAtTime(880, t0 + 1.6);
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 6;
+    lp.frequency.setValueAtTime(300, t0); lp.frequency.exponentialRampToValueAtTime(5000, t0 + 1.6);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.09, t0 + 0.3);
+    o.connect(lp); o2.connect(lp); lp.connect(g); this.out(g, 0.5);
+    o.start(t0); o2.start(t0);
+    this.riser = { o, o2, g };
+  },
+  riserStop() {
+    if (!this.riser) return;
+    const { o, o2, g } = this.riser, t0 = this.now;
+    g.gain.cancelScheduledValues(t0);
+    g.gain.setValueAtTime(g.gain.value, t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.08);
+    o.stop(t0 + 0.1); o2.stop(t0 + 0.1);
+    this.riser = null;
+  },
+  startPad() {
+    const ctx = this.ctx;
+    const lp = this.padLP = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; lp.Q.value = 2;
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 0.07;
+    const lfoG = ctx.createGain(); lfoG.gain.value = 450;
+    lfo.connect(lfoG); lfoG.connect(lp.frequency); lfo.start();
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0, this.now); g.gain.linearRampToValueAtTime(0.03, this.now + 5);
+    lp.connect(g); this.out(g, 0.9);
+    this.padOsc = [];
+    for (let v = 0; v < 4; v++) for (const det of [-8, 8]) {
+      const o = ctx.createOscillator(); o.type = 'sawtooth'; o.detune.value = det;
+      o.connect(lp); o.start(); this.padOsc.push(o);
+    }
+    let ci = 0;
+    const step = () => {
+      const ch = CHORDS[ci++ % CHORDS.length];
+      this.padOsc.forEach((o, k) => o.frequency.setTargetAtTime(mtof(ch[k >> 1]), this.now, 0.8));
+    };
+    step(); setInterval(step, 7000);
+  },
+  toggle() {
+    this.muted = !this.muted;
+    if (this.ctx) this.master.gain.setTargetAtTime(this.muted ? 0 : 0.9, this.now, 0.05);
+    return this.muted;
+  }
+};
+
+/* =========================================================
+   RENDERER / SCENE
+   ========================================================= */
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.85;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 200);
+camera.position.set(0, 0, 14);
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.02).texture;
+
+const NOISE = /* glsl */`
+vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}
+vec4 mod289(vec4 x){return x-floor(x*(1.0/289.0))*289.0;}
+vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}
+vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-0.85373472095314*r;}
+float snoise(vec3 v){
+  const vec2 C=vec2(1.0/6.0,1.0/3.0);
+  const vec4 D=vec4(0.0,0.5,1.0,2.0);
+  vec3 i=floor(v+dot(v,C.yyy));
+  vec3 x0=v-i+dot(i,C.xxx);
+  vec3 g=step(x0.yzx,x0.xyz);
+  vec3 l=1.0-g;
+  vec3 i1=min(g.xyz,l.zxy);
+  vec3 i2=max(g.xyz,l.zxy);
+  vec3 x1=x0-i1+C.xxx;
+  vec3 x2=x0-i2+C.yyy;
+  vec3 x3=x0-D.yyy;
+  i=mod289(i);
+  vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));
+  float n_=0.142857142857;
+  vec3 ns=n_*D.wyz-D.xzx;
+  vec4 j=p-49.0*floor(p*ns.z*ns.z);
+  vec4 x_=floor(j*ns.z);
+  vec4 y_=floor(j-7.0*x_);
+  vec4 x=x_*ns.x+ns.yyyy;
+  vec4 y=y_*ns.x+ns.yyyy;
+  vec4 h=1.0-abs(x)-abs(y);
+  vec4 b0=vec4(x.xy,y.xy);
+  vec4 b1=vec4(x.zw,y.zw);
+  vec4 s0=floor(b0)*2.0+1.0;
+  vec4 s1=floor(b1)*2.0+1.0;
+  vec4 sh=-step(h,vec4(0.0));
+  vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy;
+  vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;
+  vec3 p0=vec3(a0.xy,h.x);
+  vec3 p1=vec3(a0.zw,h.y);
+  vec3 p2=vec3(a1.xy,h.z);
+  vec3 p3=vec3(a1.zw,h.w);
+  vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));
+  p0*=norm.x;p1*=norm.y;p2*=norm.z;p3*=norm.w;
+  vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0);
+  m=m*m;
+  return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));
+}`;
+
+/* ---------- sky dome ---------- */
+const skyU = { uTime: { value: 0 }, uFlash: { value: 0 }, uHue: { value: 0 } };
+const sky = new THREE.Mesh(
+  new THREE.SphereGeometry(90, 48, 32),
+  new THREE.ShaderMaterial({
+    uniforms: skyU, side: THREE.BackSide, depthWrite: false,
+    vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+    fragmentShader: NOISE + `
+      uniform float uTime, uFlash, uHue; varying vec3 vDir;
+      vec3 pal(float t){ return 0.5+0.5*cos(6.28318*(t+vec3(0.0,0.33,0.67))); }
+      void main(){
+        vec3 d = normalize(vDir);
+        float s1 = snoise(d*1.6 + vec3(0.0, uTime*0.04, uTime*0.02));
+        float s2 = snoise(d*3.5 - vec3(uTime*0.05, 0.0, 0.0));
+        float swirl = s1 + s2*0.4;
+        vec3 deep = vec3(0.035, 0.005, 0.09);
+        vec3 c1 = pal(uHue + 0.85 + swirl*0.12) * 0.3;
+        vec3 c2 = pal(uHue + 0.45 - swirl*0.1) * 0.22;
+        vec3 col = mix(deep, c1, smoothstep(-0.2, 1.0, swirl + d.y*0.4));
+        col = mix(col, c2, smoothstep(0.1, 1.1, -swirl + (-d.y)*0.6) * 0.8);
+        float bands = smoothstep(0.96, 1.0, sin(swirl*14.0 + uTime*0.6)) * 0.08;
+        col += bands * pal(uHue + swirl);
+        col += uFlash * vec3(1.0, 0.35, 0.8) * 0.45;
+        gl_FragColor = vec4(col, 1.0);
+      }`
+  })
+);
+scene.add(sky);
+
+/* ---------- the blob ---------- */
+const blobU = { uTime: { value: 0 }, uPulse: { value: 0 }, uCharge: { value: 0 }, uHue: { value: 0 } };
+const blob = new THREE.Mesh(
+  new THREE.IcosahedronGeometry(2, 48),
+  new THREE.ShaderMaterial({
+    uniforms: blobU,
+    vertexShader: NOISE + `
+      uniform float uTime, uPulse, uCharge;
+      varying vec3 vNormal; varying vec3 vView; varying float vNoise;
+      void main(){
+        float speed = 0.35 + uCharge*1.6;
+        float n = snoise(normal*1.1 + uTime*speed);
+        float n2 = snoise(normal*3.2 - uTime*speed*1.7) * 0.35;
+        float spikes = snoise(normal*7.0 + uTime*2.0) * uCharge * 0.35;
+        float d = (n + n2) * (0.3 + uPulse*0.55 + uCharge*0.35) + spikes;
+        vec3 p = position + normal * d;
+        vNoise = n + n2;
+        vNormal = normalize(normalMatrix * normal);
+        vec4 mv = modelViewMatrix * vec4(p, 1.0);
+        vView = normalize(-mv.xyz);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      uniform float uTime, uPulse, uCharge, uHue;
+      varying vec3 vNormal; varying vec3 vView; varying float vNoise;
+      vec3 pal(float t){ return 0.5+0.5*cos(6.28318*(t+vec3(0.0,0.33,0.67))); }
+      void main(){
+        float fres = pow(1.0 - max(dot(normalize(vNormal), normalize(vView)), 0.0), 2.2);
+        vec3 col = pal(vNoise*0.55 + uTime*0.07 + fres*0.5 + uHue);
+        float rings = smoothstep(0.82, 1.0, sin(vNoise*16.0 - uTime*2.5));
+        col = mix(col, vec3(1.0, 0.95, 1.0), rings*0.35 + fres*0.45);
+        col *= 0.55 + fres*1.4 + uPulse*1.1 + uCharge*1.4;
+        gl_FragColor = vec4(col, 1.0);
+      }`
+  })
+);
+scene.add(blob);
+const blobHit = new THREE.Mesh(new THREE.SphereGeometry(2.25, 16, 12), new THREE.MeshBasicMaterial());
+blobHit.visible = false;
+scene.add(blobHit);
+
+/* ---------- lights ---------- */
+scene.add(new THREE.AmbientLight(0xffffff, 0.05));
+const sun = new THREE.DirectionalLight(0xffffff, 0.9); sun.position.set(4, 8, 6); scene.add(sun);
+const pLights = ['#ff3cac', '#3bf4fb', '#ffd23f'].map((c, i) => {
+  const l = new THREE.PointLight(c, 30, 0, 2); l.userData.phase = i * Math.PI * 2 / 3; scene.add(l); return l;
+});
+
+/* ---------- candy shapes ---------- */
+function starGeo() {
+  const s = new THREE.Shape();
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 ? 0.26 : 0.62, a = i / 10 * Math.PI * 2 + Math.PI / 2;
+    i ? s.lineTo(Math.cos(a) * r, Math.sin(a) * r) : s.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  s.closePath();
+  return new THREE.ExtrudeGeometry(s, { depth: 0.18, bevelEnabled: true, bevelThickness: 0.1, bevelSize: 0.07, bevelSegments: 5 }).center();
+}
+function heartGeo() {
+  const h = new THREE.Shape();
+  h.moveTo(5, 5);
+  h.bezierCurveTo(5, 5, 4, 0, 0, 0);
+  h.bezierCurveTo(-6, 0, -6, 7, -6, 7);
+  h.bezierCurveTo(-6, 11, -3, 15.4, 5, 19);
+  h.bezierCurveTo(12, 15.4, 16, 11, 16, 7);
+  h.bezierCurveTo(16, 7, 16, 0, 10, 0);
+  h.bezierCurveTo(7, 0, 5, 5, 5, 5);
+  const g = new THREE.ExtrudeGeometry(h, { depth: 4, bevelEnabled: true, bevelThickness: 2.5, bevelSize: 2, bevelSegments: 8, curveSegments: 24 });
+  g.center(); g.rotateZ(Math.PI); g.scale(0.045, 0.045, 0.045);
+  return g;
+}
+const GEOS = [
+  new THREE.SphereGeometry(0.5, 40, 28),
+  new THREE.TorusGeometry(0.42, 0.18, 24, 64),
+  new THREE.TorusKnotGeometry(0.34, 0.12, 140, 18),
+  new THREE.OctahedronGeometry(0.58),
+  new THREE.IcosahedronGeometry(0.55, 0),
+  new THREE.CapsuleGeometry(0.24, 0.5, 8, 20),
+  starGeo(),
+  heartGeo(),
+  new THREE.DodecahedronGeometry(0.5, 0),
+];
+
+const candies = [];
+const CANDY_COUNT = innerWidth < 700 ? 30 : 46;
+for (let i = 0; i < CANDY_COUNT; i++) {
+  const color = new THREE.Color(pick(PALETTE));
+  const mat = new THREE.MeshPhysicalMaterial({
+    color, roughness: rand(0.05, 0.3), metalness: rand(0, 0.25),
+    clearcoat: 1, clearcoatRoughness: 0.08,
+    iridescence: rand(0.15, 0.6), iridescenceIOR: 1.4,
+    emissive: color, emissiveIntensity: 0.06,
+  });
+  const mesh = new THREE.Mesh(GEOS[i % GEOS.length], mat);
+  const c = {
+    mesh, color, mat,
+    r: rand(4.3, 9.5), a: rand(Math.PI * 2), h: rand(-4.2, 4.2),
+    speed: rand(0.03, 0.13) * (Math.random() < 0.5 ? -1 : 1),
+    bob: rand(Math.PI * 2), bobF: rand(0.4, 1.3),
+    spin: new THREE.Vector3(rand(-1, 1), rand(-1, 1), rand(-1, 1)).multiplyScalar(1.2),
+    base: rand(0.65, 1.3), s: 0, sv: 0, target: 1,
+    state: 'alive', timer: 0, hover: false,
+    kick: new THREE.Vector3(), kickV: new THREE.Vector3(),
+  };
+  mesh.rotation.set(rand(6), rand(6), rand(6));
+  mesh.userData.c = c;
+  candies.push(c);
+  scene.add(mesh);
+}
+
+/* ---------- confetti (instanced) ---------- */
+const CONF = 2600;
+const confetti = new THREE.InstancedMesh(
+  new THREE.PlaneGeometry(0.09, 0.16),
+  new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, toneMapped: false }),
+  CONF
+);
+confetti.frustumCulled = false;
+confetti.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+const cPos = new Float32Array(CONF * 3), cVel = new Float32Array(CONF * 3);
+const cRot = new Float32Array(CONF * 3), cSpin = new Float32Array(CONF * 3);
+const cLife = new Float32Array(CONF).fill(-1);
+let cHead = 0;
+const dummy = new THREE.Object3D();
+const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
+const tmpColor = new THREE.Color();
+for (let i = 0; i < CONF; i++) { confetti.setMatrixAt(i, ZERO); confetti.setColorAt(i, tmpColor.set('#fff')); }
+scene.add(confetti);
+
+function burstConfetti(p, n, power = 6) {
+  for (let k = 0; k < n; k++) {
+    const i = cHead; cHead = (cHead + 1) % CONF;
+    const th = rand(Math.PI * 2), ph = Math.acos(rand(-1, 1)), sp = power * rand(0.35, 1.1);
+    cPos[i * 3] = p.x; cPos[i * 3 + 1] = p.y; cPos[i * 3 + 2] = p.z;
+    cVel[i * 3] = Math.sin(ph) * Math.cos(th) * sp;
+    cVel[i * 3 + 1] = Math.cos(ph) * sp + power * 0.45;
+    cVel[i * 3 + 2] = Math.sin(ph) * Math.sin(th) * sp;
+    cRot[i * 3] = rand(6); cRot[i * 3 + 1] = rand(6); cRot[i * 3 + 2] = rand(6);
+    cSpin[i * 3] = rand(-12, 12); cSpin[i * 3 + 1] = rand(-12, 12); cSpin[i * 3 + 2] = rand(-12, 12);
+    cLife[i] = rand(1.6, 3.2);
+    confetti.setColorAt(i, tmpColor.set(pick(PALETTE)).multiplyScalar(rand(1.1, 2.2)));
+  }
+  confetti.instanceColor.needsUpdate = true;
+}
+function updateConfetti(dt, t) {
+  const drag = Math.exp(-1.6 * dt);
+  for (let i = 0; i < CONF; i++) {
+    if (cLife[i] <= 0) continue;
+    cLife[i] -= dt;
+    if (cLife[i] <= 0) { confetti.setMatrixAt(i, ZERO); continue; }
+    const j = i * 3;
+    cVel[j + 1] -= 5.5 * dt;
+    cVel[j] *= drag; cVel[j + 1] *= drag; cVel[j + 2] *= drag;
+    cPos[j] += (cVel[j] + Math.sin(t * 5 + i) * 0.7) * dt;
+    cPos[j + 1] += cVel[j + 1] * dt;
+    cPos[j + 2] += (cVel[j + 2] + Math.cos(t * 4 + i) * 0.5) * dt;
+    cRot[j] += cSpin[j] * dt; cRot[j + 1] += cSpin[j + 1] * dt; cRot[j + 2] += cSpin[j + 2] * dt;
+    const s = Math.min(1, cLife[i] / 0.5);
+    dummy.position.set(cPos[j], cPos[j + 1], cPos[j + 2]);
+    dummy.rotation.set(cRot[j], cRot[j + 1], cRot[j + 2]);
+    dummy.scale.setScalar(s);
+    dummy.updateMatrix();
+    confetti.setMatrixAt(i, dummy.matrix);
+  }
+  confetti.instanceMatrix.needsUpdate = true;
+}
+
+/* ---------- glitter (additive point sprites) ---------- */
+const GL = 5000;
+const gGeo = new THREE.BufferGeometry();
+const gPos = new Float32Array(GL * 3), gCol = new Float32Array(GL * 3);
+const gSize = new Float32Array(GL), gAlpha = new Float32Array(GL);
+const gVel = new Float32Array(GL * 3), gLife = new Float32Array(GL), gMax = new Float32Array(GL), gDrag = new Float32Array(GL);
+let gHead = 0;
+gGeo.setAttribute('position', new THREE.BufferAttribute(gPos, 3).setUsage(THREE.DynamicDrawUsage));
+gGeo.setAttribute('aColor', new THREE.BufferAttribute(gCol, 3).setUsage(THREE.DynamicDrawUsage));
+gGeo.setAttribute('aSize', new THREE.BufferAttribute(gSize, 1).setUsage(THREE.DynamicDrawUsage));
+gGeo.setAttribute('aAlpha', new THREE.BufferAttribute(gAlpha, 1).setUsage(THREE.DynamicDrawUsage));
+const SPRITE_VERT = `
+  attribute float aSize; attribute float aAlpha; attribute vec3 aColor;
+  uniform float uPR; varying vec3 vColor; varying float vAlpha;
+  void main(){
+    vColor = aColor; vAlpha = aAlpha;
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    gl_PointSize = aSize * uPR * (300.0 / -mv.z);
+    gl_Position = projectionMatrix * mv;
+  }`;
+const SPRITE_FRAG = `
+  varying vec3 vColor; varying float vAlpha;
+  void main(){
+    vec2 c = gl_PointCoord - 0.5;
+    float d = length(c);
+    float core = pow(smoothstep(0.5, 0.0, d), 2.2);
+    float star = max(0.0, 1.0 - abs(c.x)*16.0) * smoothstep(0.5, 0.0, abs(c.y))
+               + max(0.0, 1.0 - abs(c.y)*16.0) * smoothstep(0.5, 0.0, abs(c.x));
+    float a = (core + star*0.7) * vAlpha;
+    if (a < 0.01) discard;
+    gl_FragColor = vec4(vColor * a * 2.0, a);
+  }`;
+const glitter = new THREE.Points(gGeo, new THREE.ShaderMaterial({
+  uniforms: { uPR: { value: renderer.getPixelRatio() } },
+  vertexShader: SPRITE_VERT, fragmentShader: SPRITE_FRAG,
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+}));
+glitter.frustumCulled = false;
+scene.add(glitter);
+
+function spawnGlitter(p, v, color, size, life, drag = 1.5) {
+  const i = gHead; gHead = (gHead + 1) % GL; const j = i * 3;
+  gPos[j] = p.x; gPos[j + 1] = p.y; gPos[j + 2] = p.z;
+  gVel[j] = v.x; gVel[j + 1] = v.y; gVel[j + 2] = v.z;
+  gCol[j] = color.r; gCol[j + 1] = color.g; gCol[j + 2] = color.b;
+  gSize[i] = size; gLife[i] = gMax[i] = life; gDrag[i] = drag;
+}
+const _v = new THREE.Vector3(), _p = new THREE.Vector3();
+function burstGlitter(p, n, power = 4, color = null) {
+  for (let k = 0; k < n; k++) {
+    _v.randomDirection().multiplyScalar(power * rand(0.3, 1.2));
+    tmpColor.set(color || pick(PALETTE)).offsetHSL(rand(-0.06, 0.06), 0, 0).multiplyScalar(rand(1, 2.4));
+    spawnGlitter(p, _v, tmpColor, rand(0.12, 0.42), rand(0.6, 1.6));
+  }
+}
+function updateGlitter(dt) {
+  for (let i = 0; i < GL; i++) {
+    if (gLife[i] <= 0) { gAlpha[i] = 0; continue; }
+    gLife[i] -= dt;
+    const j = i * 3, drag = Math.exp(-gDrag[i] * dt);
+    gVel[j] *= drag; gVel[j + 1] = gVel[j + 1] * drag - 0.6 * dt; gVel[j + 2] *= drag;
+    gPos[j] += gVel[j] * dt; gPos[j + 1] += gVel[j + 1] * dt; gPos[j + 2] += gVel[j + 2] * dt;
+    const k = Math.max(0, gLife[i] / gMax[i]);
+    gAlpha[i] = k * k * (1 + 0.4 * Math.sin(gLife[i] * 30));
+  }
+  for (const name of ['position', 'aColor', 'aSize', 'aAlpha']) gGeo.attributes[name].needsUpdate = true;
+}
+
+/* ---------- ambient dust (twinkling starfield) ---------- */
+const DUST = 1800;
+const dGeo = new THREE.BufferGeometry();
+const dPos = new Float32Array(DUST * 3), dCol = new Float32Array(DUST * 3), dSize = new Float32Array(DUST), dPhase = new Float32Array(DUST);
+for (let i = 0; i < DUST; i++) {
+  _v.randomDirection().multiplyScalar(rand(14, 60));
+  dPos.set([_v.x, _v.y, _v.z], i * 3);
+  tmpColor.set(pick(PALETTE)).lerp(new THREE.Color('#fff'), 0.4);
+  dCol.set([tmpColor.r, tmpColor.g, tmpColor.b], i * 3);
+  dSize[i] = rand(0.3, 1.4); dPhase[i] = rand(100);
+}
+dGeo.setAttribute('position', new THREE.BufferAttribute(dPos, 3));
+dGeo.setAttribute('aColor', new THREE.BufferAttribute(dCol, 3));
+dGeo.setAttribute('aSize', new THREE.BufferAttribute(dSize, 1));
+dGeo.setAttribute('aPhase', new THREE.BufferAttribute(dPhase, 1));
+const dustU = { uPR: { value: renderer.getPixelRatio() }, uTime: { value: 0 }, uBoost: { value: 0 } };
+const dust = new THREE.Points(dGeo, new THREE.ShaderMaterial({
+  uniforms: dustU,
+  vertexShader: `
+    attribute float aSize; attribute float aPhase; attribute vec3 aColor;
+    uniform float uPR, uTime, uBoost; varying vec3 vColor; varying float vAlpha;
+    void main(){
+      vColor = aColor;
+      vAlpha = 0.25 + 0.75*pow(0.5 + 0.5*sin(uTime*(0.6 + fract(aPhase)*2.0) + aPhase), 4.0) + uBoost;
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      gl_PointSize = aSize * uPR * (300.0 / -mv.z) * (1.0 + uBoost);
+      gl_Position = projectionMatrix * mv;
+    }`,
+  fragmentShader: SPRITE_FRAG,
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+}));
+scene.add(dust);
+
+/* ---------- shockwave rings ---------- */
+const rings = Array.from({ length: 10 }, () => {
+  const m = new THREE.Mesh(
+    new THREE.RingGeometry(0.93, 1, 128),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false })
+  );
+  m.visible = false; m.userData = { life: 0, max: 1, size: 8 };
+  scene.add(m); return m;
+});
+let ringHead = 0;
+function ring(p, color, size = 8, max = 1, delay = 0) {
+  const m = rings[ringHead]; ringHead = (ringHead + 1) % rings.length;
+  m.position.copy(p); m.visible = true;
+  m.material.color.set(color).multiplyScalar(2.5);
+  m.userData.life = -delay; m.userData.max = max; m.userData.size = size;
+}
+function updateRings(dt) {
+  for (const m of rings) {
+    if (!m.visible) continue;
+    const u = m.userData; u.life += dt;
+    if (u.life < 0) { m.material.opacity = 0; continue; }
+    const k = u.life / u.max;
+    if (k >= 1) { m.visible = false; continue; }
+    const e = 1 - Math.pow(1 - k, 3);
+    m.scale.setScalar(0.3 + e * u.size);
+    m.material.opacity = (1 - k) * (1 - k);
+    m.quaternion.copy(camera.quaternion);
+  }
+}
+
+/* =========================================================
+   POST-PROCESSING
+   ========================================================= */
+const composer = new EffectComposer(renderer);
+composer.setPixelRatio(Math.min(devicePixelRatio, 2));
+composer.setSize(innerWidth, innerHeight);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.55, 0.6, 0.55);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+const finalPass = new ShaderPass({
+  uniforms: {
+    tDiffuse: { value: null }, uAberr: { value: 0.02 }, uTime: { value: 0 },
+    uRes: { value: new THREE.Vector2(innerWidth, innerHeight) }, uWarp: { value: 0 },
+  },
+  vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader: `
+    uniform sampler2D tDiffuse; uniform float uAberr, uTime, uWarp; uniform vec2 uRes; varying vec2 vUv;
+    void main(){
+      vec2 c = vUv - 0.5;
+      float d = length(c);
+      vec2 uv = vUv + c * sin(d*18.0 - uTime*14.0) * 0.012 * uWarp;
+      vec2 off = c * d * uAberr;
+      vec3 col = vec3(texture2D(tDiffuse, uv + off).r, texture2D(tDiffuse, uv).g, texture2D(tDiffuse, uv - off).b);
+      col *= 1.0 - smoothstep(0.45, 0.95, d) * 0.6;
+      float grain = fract(sin(dot(vUv*uRes + fract(uTime)*91.7, vec2(12.9898, 78.233))) * 43758.5453);
+      col += (grain - 0.5) * 0.035;
+      gl_FragColor = vec4(col, 1.0);
+    }`
+});
+composer.addPass(finalPass);
+
+/* =========================================================
+   INTERACTION / GAME STATE
+   ========================================================= */
+const $ = id => document.getElementById(id);
+const fx = $('fx'), scoreEl = $('score'), meterEl = $('meter'), comboEl = $('combo'), cursorEl = $('cursor'), flashEl = $('flash');
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2(0, 0);
+const mouseSmooth = new THREE.Vector2(0, 0);
+let started = false, score = 0, meter = 0, combo = 0, lastHit = -10, rushCool = 0;
+let charging = false, charge = 0, chargeVis = 0;
+let pulse = 0, aberr = 0, shake = 0, flash = 0, fovKick = 0, warp = 0, hueShift = 0;
+let hovered = null, t = 0;
+
+function retrigger(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+function toScreen(v) {
+  const p = v.clone().project(camera);
+  return { x: (p.x + 1) / 2 * innerWidth, y: (1 - p.y) / 2 * innerHeight };
+}
+function floatText(x, y, text, color, big = false) {
+  const el = document.createElement('div');
+  el.className = 'pop' + (big ? ' big' : '');
+  el.textContent = text;
+  el.style.left = x + 'px'; el.style.top = y + 'px';
+  el.style.setProperty('--c', color);
+  el.style.setProperty('--r', rand(-18, 18) + 'deg');
+  fx.appendChild(el);
+  setTimeout(() => el.remove(), 1250);
+}
+function bigText(text) {
+  const el = document.createElement('div');
+  el.className = 'rushText rainbow';
+  el.innerHTML = text;
+  fx.appendChild(el);
+  setTimeout(() => el.remove(), 1900);
+}
+function addScore(n, at) {
+  score += n;
+  scoreEl.textContent = score.toLocaleString();
+  retrigger(scoreEl, 'bump');
+  if (at) floatText(at.x, at.y, n > 1 ? `+${n}` : pick(WORDS), pick(PALETTE));
+}
+function setMeter(v) {
+  meter = Math.max(0, Math.min(1, v));
+  meterEl.style.width = (meter * 100).toFixed(1) + '%';
+  if (meter >= 1 && rushCool <= 0) rush();
+}
+function registerHit(worldPos) {
+  if (t - lastHit < 1.3) combo++; else combo = 0;
+  lastHit = t;
+  const scr = toScreen(worldPos);
+  addScore(1 + Math.floor(combo / 4), scr);
+  if (combo >= 2) {
+    comboEl.textContent = `COMBO ×${combo + 1}`;
+    comboEl.classList.add('on'); retrigger(comboEl, 'bump');
+  }
+  if (combo > 0 && combo % 8 === 0) {
+    floatText(innerWidth / 2, innerHeight * 0.32, pick(['UNSTOPPABLE', 'ON FIRE', 'GODLIKE', 'EUPHORIA', 'MAXIMUM JOY']), '#ffd23f', true);
+    A.strum(6, 5, 0.05, 0.14);
+  }
+  setMeter(meter + 0.065);
+  aberr = Math.min(aberr + 0.25, 1.2);
+  flash = Math.min(flash + 0.15, 0.6);
+  hueShift += 0.03;
+  return combo;
+}
+
+function popCandy(c, silent = false) {
+  if (c.state !== 'alive') return;
+  const p = c.mesh.position.clone();
+  c.state = 'dead'; c.mesh.visible = false; c.timer = rand(1.4, 3.6);
+  if (hovered === c) hovered = null;
+  const hex = '#' + c.color.getHexString();
+  burstConfetti(p, silent ? 30 : 70, 6);
+  burstGlitter(p, silent ? 30 : 60, 5, hex);
+  ring(p, hex, 3.2, 0.6);
+  if (!silent) {
+    const k = registerHit(p);
+    A.bloop(1 + Math.min(k, 12) * 0.06);
+    const note = SCALE[Math.min(k, SCALE.length - 1)];
+    A.pluck(mtof(note), 0.22);
+    A.pluck(mtof(note + 12), 0.08, 0.06);
+    shake = Math.max(shake, 0.12);
+  }
+}
+
+function blobBoop(at) {
+  pulse = Math.max(pulse, 1);
+  ring(blob.position, pick(PALETTE), 6, 0.9);
+  for (let k = 0; k < 90; k++) {
+    _p.randomDirection().multiplyScalar(2.2);
+    _v.copy(_p).normalize().multiplyScalar(rand(3, 8));
+    tmpColor.set(pick(PALETTE)).multiplyScalar(rand(1.2, 2.5));
+    spawnGlitter(_p, _v, tmpColor, rand(0.15, 0.45), rand(0.8, 1.6), 2.2);
+  }
+  A.strum(Math.floor(rand(0, 5)), 4, 0.05, 0.16);
+  A.bloop(0.7);
+  addScore(1, at);
+  setMeter(meter + 0.05);
+  aberr = Math.min(aberr + 0.35, 1.2);
+  shake = Math.max(shake, 0.18);
+}
+
+function bigBoop(power) {
+  pulse = 1 + power;
+  ring(blob.position, '#ff3cac', 8, 1);
+  ring(blob.position, '#3bf4fb', 11, 1.2, 0.12);
+  burstConfetti(blob.position, Math.floor(260 * power), 11 * power + 3);
+  burstGlitter(blob.position, Math.floor(200 * power), 10 * power);
+  pushCandies(power * 10);
+  A.boom(0.4 + power * 0.4);
+  A.strum(2, 6, 0.04, 0.15);
+  addScore(Math.ceil(power * 10), toScreen(blob.position));
+  setMeter(meter + power * 0.25);
+  aberr = 1; shake = Math.max(shake, power * 0.6); flash = 0.6; fovKick = power * 8;
+}
+
+function pushCandies(power) {
+  for (const c of candies) {
+    _v.copy(c.mesh.position).normalize().multiplyScalar(power * rand(0.6, 1.3));
+    c.kickV.add(_v);
+    c.sv += power * 1.2;
+  }
+}
+
+function rush() {
+  if (rushCool > 0) return;
+  rushCool = 1.8;
+  setMeter(0);
+  pulse = 2.4; aberr = 2.2; shake = REDUCED ? 0.1 : 1; flash = 0.7; fovKick = 16; warp = 1;
+  retrigger(flashEl, 'on');
+  bigText('DOPAMINE<br>RUSH!!');
+  pushCandies(16);
+  candies.forEach(c => { if (Math.random() < 0.4) popCandy(c, true); });
+  for (let k = 0; k < 10; k++) {
+    _p.set(rand(-9, 9), rand(-5, 6), rand(-6, 4));
+    burstConfetti(_p, 90, 8);
+  }
+  burstConfetti(blob.position, 300, 16);
+  for (let k = 0; k < 600; k++) {
+    _p.set(0, 0, 0);
+    _v.randomDirection().multiplyScalar(rand(8, 22));
+    tmpColor.set(pick(PALETTE)).multiplyScalar(rand(1.5, 3));
+    spawnGlitter(_p, _v, tmpColor, rand(0.2, 0.6), rand(1, 2.2), 1.3);
+  }
+  ['#ff3cac', '#ffd23f', '#3bf4fb', '#00f5a0'].forEach((c, i) => ring(blob.position, c, 10 + i * 4, 1.3, i * 0.1));
+  hueShift += 0.35;
+  addScore(25, null);
+  A.rush();
+}
+
+/* ---------- pointer ---------- */
+function updateMouse(e) {
+  mouse.x = e.clientX / innerWidth * 2 - 1;
+  mouse.y = -(e.clientY / innerHeight) * 2 + 1;
+  cursorEl.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
+}
+function aliveMeshes() { return candies.filter(c => c.state === 'alive').map(c => c.mesh); }
+function pickAt() {
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects([blobHit, ...aliveMeshes()], false);
+  return hits.length ? hits[0] : null;
+}
+
+let lastTrail = { x: 0, y: 0 };
+addEventListener('pointermove', e => {
+  updateMouse(e);
+  if (!started) return;
+  // glitter trail
+  const dx = e.clientX - lastTrail.x, dy = e.clientY - lastTrail.y;
+  if (dx * dx + dy * dy > 120) {
+    lastTrail = { x: e.clientX, y: e.clientY };
+    raycaster.setFromCamera(mouse, camera);
+    raycaster.ray.at(9, _p);
+    for (let k = 0; k < 3; k++) {
+      _v.randomDirection().multiplyScalar(0.6);
+      tmpColor.setHSL((t * 0.25 + rand(0.1)) % 1, 1, 0.62).multiplyScalar(2);
+      spawnGlitter(_p, _v, tmpColor, rand(0.12, 0.3), rand(0.5, 1));
+    }
+  }
+  // hover
+  const hit = pickAt();
+  const c = hit && hit.object !== blobHit ? hit.object.userData.c : null;
+  const onBlob = hit && hit.object === blobHit;
+  if (c !== hovered) {
+    if (hovered) hovered.hover = false;
+    hovered = c;
+    if (c) { c.hover = true; c.sv += 6; A.tick(mtof(pick(SCALE) + 12)); }
+  }
+  cursorEl.classList.toggle('hot', !!c || onBlob);
+});
+
+canvas.addEventListener('pointerdown', e => {
+  if (!started) return;
+  updateMouse(e);
+  cursorEl.classList.add('down');
+  const hit = pickAt();
+  if (hit && hit.object === blobHit) {
+    charging = true; charge = 0;
+    A.riserStart();
+  } else if (hit) {
+    popCandy(hit.object.userData.c);
+  } else {
+    raycaster.ray.at(10, _p);
+    burstGlitter(_p, 40, 3.5);
+    burstConfetti(_p, 18, 3.5);
+    ring(_p, pick(PALETTE), 1.6, 0.5);
+    A.pluck(mtof(pick(SCALE.slice(4, 14))), 0.14);
+  }
+});
+
+function release(e) {
+  cursorEl.classList.remove('down');
+  if (!charging) return;
+  charging = false;
+  A.riserStop();
+  if (charge < 0.18) blobBoop(e ? { x: e.clientX, y: e.clientY } : toScreen(blob.position));
+  else if (charge >= 0.97) { rushCool = 0; rush(); }
+  else bigBoop(charge);
+  charge = 0;
+}
+addEventListener('pointerup', release);
+addEventListener('pointercancel', release);
+
+/* ---------- keyboard ---------- */
+const KEYS = 'asdfghjklqwertyuiopzxcvbnm';
+addEventListener('keydown', e => {
+  if (!started || e.repeat) return;
+  if (e.code === 'Space') { e.preventDefault(); rushCool = 0; rush(); return; }
+  const k = KEYS.indexOf(e.key.toLowerCase());
+  if (k >= 0) {
+    const alive = candies.filter(c => c.state === 'alive');
+    if (alive.length) {
+      const c = pick(alive);
+      const p = c.mesh.position.clone();
+      popCandy(c, true);
+      registerHit(p);
+      A.pluck(mtof(SCALE[k % SCALE.length]), 0.22);
+      A.bloop(1 + (k % 8) * 0.08);
+    }
+  }
+});
+
+$('mute').addEventListener('click', e => {
+  e.stopPropagation();
+  e.currentTarget.textContent = A.toggle() ? '🔇' : '🔊';
+});
+
+/* ---------- intro ---------- */
+const title = $('title');
+title.innerHTML = title.innerHTML.split('<br>').map(word =>
+  [...word].map((ch, i) => `<span class="l" style="animation-delay:${(i * 0.09).toFixed(2)}s">${ch}</span>`).join('')
+).join('<br>');
+
+$('enter').addEventListener('click', () => {
+  if (started) return;
+  try { A.init(); } catch (err) { console.warn('Audio unavailable', err); }
+  started = true;
+  document.body.classList.add('started');
+  $('intro').classList.add('gone');
+  setTimeout(() => { rushCool = 0; rush(); score = 0; scoreEl.textContent = '0'; }, 450);
+});
+
+/* =========================================================
+   LOOP
+   ========================================================= */
+const clock = new THREE.Clock();
+let jiggleTimer = 0;
+const camBase = new THREE.Vector3();
+
+function frame() {
+  requestAnimationFrame(frame);
+  const dt = Math.min(clock.getDelta(), 1 / 30);
+  t += dt;
+
+  // decays
+  pulse *= Math.exp(-2.6 * dt);
+  aberr *= Math.exp(-3 * dt);
+  shake *= Math.exp(-4.5 * dt);
+  flash *= Math.exp(-3.5 * dt);
+  fovKick *= Math.exp(-3 * dt);
+  warp *= Math.exp(-1.8 * dt);
+  rushCool -= dt;
+  if (meter > 0 && !charging) setMeter(meter - dt * 0.018);
+  if (t - lastHit > 1.3 && combo > 0) { combo = 0; comboEl.classList.remove('on'); }
+
+  // charging the blob
+  if (charging) {
+    charge = Math.min(1, charge + dt / 1.6);
+    shake = Math.max(shake, charge * 0.12);
+    for (let k = 0; k < Math.ceil(6 * charge + 1); k++) {
+      _p.randomDirection().multiplyScalar(rand(6, 9));
+      _v.copy(_p).multiplyScalar(-rand(1.1, 1.5));
+      tmpColor.set(pick(PALETTE)).multiplyScalar(2);
+      spawnGlitter(_p, _v, tmpColor, rand(0.15, 0.35), 0.75, 0.2);
+    }
+  }
+  chargeVis += (charge - chargeVis) * Math.min(1, dt * 10);
+
+  // blob
+  const hue = hueShift + t * 0.01;
+  blobU.uTime.value = t;
+  blobU.uPulse.value = pulse;
+  blobU.uCharge.value = chargeVis;
+  blobU.uHue.value = hue;
+  blob.rotation.y += dt * (0.15 + chargeVis * 2);
+  blob.rotation.x = Math.sin(t * 0.3) * 0.3;
+  blob.scale.setScalar(1 + Math.sin(t * 1.4) * 0.03 + chargeVis * 0.12 + pulse * 0.06);
+
+  skyU.uTime.value = t;
+  skyU.uFlash.value = flash;
+  skyU.uHue.value = hue * 0.5;
+  dustU.uTime.value = t;
+  dustU.uBoost.value = flash * 0.8;
+  dust.rotation.y += dt * 0.01;
+  dust.rotation.x += dt * 0.004;
+
+  // lights orbit
+  pLights.forEach((l, i) => {
+    const a = t * 0.4 + l.userData.phase;
+    l.position.set(Math.cos(a) * 7, Math.sin(t * 0.7 + i) * 4, Math.sin(a) * 7);
+  });
+
+  // random jiggles to keep the world alive
+  jiggleTimer -= dt;
+  if (jiggleTimer <= 0) {
+    jiggleTimer = rand(0.4, 1.4);
+    const c = pick(candies);
+    if (c.state === 'alive') c.sv += rand(4, 9);
+  }
+
+  // candies
+  for (const c of candies) {
+    if (c.state === 'dead') {
+      c.timer -= dt;
+      if (c.timer <= 0) {
+        c.state = 'alive'; c.mesh.visible = true; c.s = 0; c.sv = 0;
+        c.a = rand(Math.PI * 2); c.h = rand(-4.2, 4.2);
+        c.color.set(pick(PALETTE)); c.mat.color.copy(c.color); c.mat.emissive.copy(c.color);
+        burstGlitter(_p.set(Math.cos(c.a) * c.r, c.h, Math.sin(c.a) * c.r), 16, 1.5, '#' + c.color.getHexString());
+      }
+      continue;
+    }
+    c.a += c.speed * dt * (1 + warp * 4);
+    // spring kick
+    c.kickV.addScaledVector(c.kick, -9 * dt);
+    c.kickV.multiplyScalar(Math.exp(-2.4 * dt));
+    c.kick.addScaledVector(c.kickV, dt);
+    c.mesh.position.set(
+      Math.cos(c.a) * c.r + c.kick.x,
+      c.h + Math.sin(t * c.bobF + c.bob) * 0.5 + c.kick.y,
+      Math.sin(c.a) * c.r + c.kick.z
+    );
+    const spinMul = 1 + (c.hover ? 3 : 0) + warp * 5;
+    c.mesh.rotation.x += c.spin.x * dt * spinMul;
+    c.mesh.rotation.y += c.spin.y * dt * spinMul;
+    c.mesh.rotation.z += c.spin.z * dt * spinMul;
+    // jelly spring scale
+    const target = c.base * (c.hover ? 1.35 : 1);
+    c.sv += (target - c.s) * 170 * dt;
+    c.sv *= Math.exp(-9 * dt);
+    c.s += c.sv * dt;
+    const wob = Math.max(-0.35, Math.min(0.35, c.sv * 0.025));
+    c.mesh.scale.set(c.s * (1 + wob), c.s * (1 - wob), c.s * (1 + wob));
+    c.mat.emissiveIntensity = 0.06 + (c.hover ? 0.5 : 0) + flash * 0.5;
+  }
+
+  updateConfetti(dt, t);
+  updateGlitter(dt);
+  updateRings(dt);
+
+  // camera
+  mouseSmooth.lerp(mouse, Math.min(1, dt * 3));
+  camBase.set(
+    Math.sin(t * 0.08) * 2.4 + mouseSmooth.x * 1.8,
+    Math.cos(t * 0.06) * 1.0 + mouseSmooth.y * 1.2,
+    14 + Math.sin(t * 0.11) * 0.8 - chargeVis * 2
+  );
+  camera.position.lerp(camBase, Math.min(1, dt * 2.5));
+  camera.lookAt(0, 0, 0);
+  if (shake > 0.001 && !REDUCED) {
+    camera.position.x += rand(-1, 1) * shake * 0.4;
+    camera.position.y += rand(-1, 1) * shake * 0.4;
+  }
+  camera.fov = 55 + fovKick;
+  camera.updateProjectionMatrix();
+
+  // post
+  bloom.strength = 0.55 + pulse * 0.25 + flash * 0.5 + chargeVis * 0.5;
+  finalPass.uniforms.uAberr.value = 0.02 + (REDUCED ? aberr * 0.02 : aberr * 0.09) + chargeVis * 0.05;
+  finalPass.uniforms.uTime.value = t;
+  finalPass.uniforms.uWarp.value = REDUCED ? 0 : warp;
+
+  composer.render();
+}
+frame();
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  composer.setSize(innerWidth, innerHeight);
+  bloom.resolution.set(innerWidth, innerHeight);
+  finalPass.uniforms.uRes.value.set(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
